@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { QrCodeIcon } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import toast from 'react-hot-toast';  // ← Add this line
 
 function PaymentForm({ onPaymentCreated }) {
   const [formData, setFormData] = useState({
@@ -13,45 +14,86 @@ function PaymentForm({ onPaymentCreated }) {
   const [loading, setLoading] = useState(false);
   const [activeQR, setActiveQR] = useState(null);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!formData.amount || !formData.payer_name) {
-      alert('Please fill in Payer Name and Amount');
-      return;
-    }
 
-    setLoading(true);
+const validateForm = () => {
+  if (!formData.payer_name.trim()) {
+    toast.error('Payer name is required');
+    return false;
+  }
+  
+  if (formData.payer_name.length < 2) {
+    toast.error('Payer name must be at least 2 characters');
+    return false;
+  }
+  
+  if (!formData.amount || formData.amount <= 0) {
+    toast.error('Amount must be greater than 0');
+    return false;
+  }
+  
+  if (formData.amount > 100000) {
+    toast.error('Amount cannot exceed ₹1,00,000');
+    return false;
+  }
+  
+  if (!formData.upi_id.includes('@')) {
+    toast.error('Invalid UPI ID format');
+    return false;
+  }
+  
+  return true;
+};
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  // Validate form
+  if (!validateForm()) {
+    return;
+  }
+
+  setLoading(true);
+  
+  // Show loading toast
+  const loadingToast = toast.loading('Creating payment request...');
+  
+  try {
+    const response = await fetch('http://localhost:5000/api/payments/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    });
     
-    try {
-      const response = await fetch('http://localhost:5000/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+    const data = await response.json();
+    
+    if (data.success) {
+      setActiveQR(data.data);
+      if (onPaymentCreated) onPaymentCreated(data.data);
+      
+      // Success notification
+      toast.success('Payment request created! 🎉', {
+        id: loadingToast,
       });
       
-      const data = await response.json();
-      
-      if (data.success) {
-        setActiveQR(data.data);
-        if (onPaymentCreated) onPaymentCreated(data.data);
-        
-        // Clear form
-        setFormData({
-          ...formData,
-          amount: '',
-          payer_name: '',
-          note: ''
-        });
-      } else {
-        alert('Error: ' + data.error);
-      }
-    } catch (error) {
-      alert('Failed to create payment: ' + error.message);
-    } finally {
-      setLoading(false);
+      // Clear form
+      setFormData({
+        ...formData,
+        amount: '',
+        payer_name: '',
+        note: ''
+      });
+    } else {
+      toast.error(data.error || 'Failed to create payment', {
+        id: loadingToast,
+      });
     }
-  };
+  } catch (error) {
+    toast.error('Network error. Please check your connection.', {
+      id: loadingToast,
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="bg-white border-2 border-black rounded-lg p-4 sm:p-6">
