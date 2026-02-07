@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://payflow-mauve.vercel.app'
+    'https://payflowmyapp.netlify.app'
   ],
   credentials: true
 }));
